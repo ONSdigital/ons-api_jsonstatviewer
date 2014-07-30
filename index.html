@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1" />
+<title>json-stat test</title>
+	<script src="http://json-stat.org/lib/json-stat.js"></script>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+	
+<style>
+body {
+font:11px arial,sans-serif;
+}
+
+div.dataset {
+background-color:#909090;
+width:500px;
+}
+div.dimension {
+background-color:#B0B0B0;
+margin-left:20px;
+margin-bottom:5px;
+width:500px;
+}
+div.category {
+background-color:#D0D0D0;
+margin-left:40px;
+margin-bottom:5px;
+width:500px;
+}
+div.dataset div {
+margin-left:20px;
+}
+div.dimension div {
+margin-left:40px;
+}
+div.category div {
+margin-left:60px;
+}
+
+div.dataheader {
+font:13px arial,sans-serif;
+margin-left:20px;
+background-color:#F0F0F0;
+}
+div.header1 {
+background-color:#A0A0A0;
+color:#DDDDDD;
+text-align:center;
+font-weight:bold;
+border:0;
+}
+div.header2 {
+background-color:#B0B0B0;
+color:#DDDDDD;
+text-align:center;
+}
+div.datatable {
+border:1px solid;
+font:13px arial,sans-serif;
+}
+
+</style>
+	
+</head>
+<body>
+<script>
+google.load('visualization', '1', {packages:['table']});
+</script>
+
+  URL: 
+  <br />
+  <input name="selectedjson" id="selectedjson" size="150" /> 
+  <input type="button" value="Go" onclick="goWithUrl();"/>
+  <br />
+  Json-stat:
+  <br />
+  <textarea rows="15" cols="130" name="jsonstat" id="jsonstat">
+  </textarea>
+  <input type="button" value="Go" onclick="goWithJson();"/>
+  <p />
+  <input type="button" value="Show Data" id="databutton" onclick="show_data();" />
+  <input type="button" value="Show Structure" id="structurebutton" onclick="toggle_structure();" />
+   
+<div id="result">
+</div>
+<div id="dataarea">
+	<div id="datasetselector">
+		<br />Dataset:
+	</div>
+	<div id="chart_div" style="width: 900px; height: 500px;"></div>
+</div>
+
+<script>
+
+var url = "http://data.ons.gov.uk/ons/api/data/dataset/QS201EW.json?context=Census&apikey=YOUR_KEY_HERE&geog=2011WARDH&dm/2011WARDH=E92000001&jsontype=json-stat&totals=false"
+
+var J;
+var isDataFormatted = new Boolean(false);
+document.getElementById("selectedjson").value = url;
+var currentDataset;
+start();
+
+function start(){
+	$("#structurebutton").hide();
+	$("#databutton").show();
+	$("#result").show();
+	$("#dataarea").hide();
+	$("#datasetselector").hide();
+}
+
+function toggle_structure() {
+	$("#result").toggle();
+	$("#databutton").toggle();
+	$("#structurebutton").toggle();
+	$("#dataarea").toggle();
+}
+
+function goWithUrl() {
+	start();
+	var url = document.getElementById("selectedjson").value;
+	
+	$("body").css("cursor", "progress");
+	$.support.cors = true;  // this is required for IE8
+	$.getJSON(url)
+		.done(function (response) {
+			var ta = document.getElementById('jsonstat');
+			ta.value = JSON.stringify(response, null, 4);
+			browse_jsonStat(response);
+		})
+		.fail(function( jqXHR, textStatus, errorThrown ){
+			alert("Failed to find JSON at that URL.");
+			return;
+		})
+		.always(function() {
+			$("body").css("cursor", "default");
+		});
+	
+}
+function goWithJson() {
+	start();
+	var data = JSON.parse(document.getElementById("jsonstat").value);
+	browse_jsonStat(data);
+}
+
+
+function fixGeocount (jsonstat){
+	url = document.getElementById("selectedjson").value;
+	var datasetid = url.substring(url.indexOf("dataset")+8,url.indexOf(".json"));
+	var hierarchyid = url.substring(url.indexOf("geog")+5);
+	var amp = hierarchyid.indexOf("&");
+	if (amp > 0)
+	{
+		hierarchyid = hierarchyid.substring(0,amp);
+	}
+        var geoCount = countObjectProperties(jsonstat[datasetid]['dimension'][hierarchyid]['category']['index']);        
+        jsonstat[datasetid]['dimension']['size'][0] = geoCount;
+ 	return jsonstat;
+}
+
+
+function countObjectProperties(obj)
+{
+    var count = 0;
+    for(var i in obj)
+        if(obj.hasOwnProperty(i))
+            count++;
+
+    return count;
+}
+
+
+
+function browse_jsonStat(jsonstat){
+	$("#result").html("running ...... ");
+	//jsonstat2 = fixGeocount(jsonstat);
+
+	J = JSONstat(jsonstat);
+	if (J.length == 0) {
+		$("#result").empty();
+        alert ("no datasets found");
+		return;
+	}
+	$("#result").empty();
+	var dsArray = J.id;
+	for (var i=0;i<dsArray.length;i++){
+		formatDataset(dsArray[i]);
+	}
+}
+
+function formatDataset(ds) {
+	var dataset = J.Dataset(ds);
+	var dsDiv = document.createElement('div');
+	var att = document.createAttribute('class');
+	att.value = 'dataset'
+	dsDiv.setAttributeNode(att);
+	var dsHTML = "<b>"+ds+"</b>";
+	dsHTML += "<div>";
+	dsHTML += "label : " + dataset.label;
+	dsHTML += "<br />date updated : " + dataset.updated;
+	dsHTML += "</div>";
+	dsDiv.innerHTML = dsHTML;
+	
+	$("#result").append(dsDiv);
+	$("#result").append('<br />');
+
+	formatDimension(dataset);
+}
+
+function formatDimension(dataset) {
+	//var result = document.getElementById('result');
+	var dimArray = dataset.id;
+	for (var i=0;i<dimArray.length;i++){
+		var dimension = dataset.Dimension(dimArray[i]);
+		var dimDiv = document.createElement('div');
+		var att = document.createAttribute('class');
+		att.value = 'dimension'
+		dimDiv.setAttributeNode(att);
+		var dimHTML = "<b>"+dimArray[i]+"</b>";
+		dimHTML += "<div>";
+		dimHTML += "label : " + dimension.label;
+		dimHTML += "<br />length : " + dimension.length;
+		dimHTML += "<br />role : " + dimension.role;
+		dimHTML += "</div>";
+		dimDiv.innerHTML = dimHTML;
+		//result.appendChild(dimDiv);
+		$("#result").append(dimDiv);
+		$("#result").append('<br />');
+		formatCategory(dimension);
+			
+	}
+	
+}
+
+function formatCategory(dimension) {
+	//var result = document.getElementById('result');
+	var catArray = dimension.id;
+	for (var i=0;i<catArray.length;i++){
+		var category = dimension.Category(catArray[i]);
+		var catDiv = document.createElement('div');
+		var att = document.createAttribute('class');
+		att.value = 'category'
+		catDiv.setAttributeNode(att);
+		//catDiv.classList.add('category');
+		var catHTML = "<b>"+catArray[i]+"</b>";
+		catHTML += "<div>";
+		catHTML += "label : " + category.label;
+		catHTML += "<br />index : " + category.index;
+		catHTML += "<br />coordinates : " + category.coordinates;
+		catHTML += "<br />child : " + category.id;
+		if (category.unit != null) {
+			catHTML += "<br />unit base: " + category.unit.base;
+			catHTML += "<br />unit label: " + category.unit.label;
+			catHTML += "<br />unit multiplier: " + category.unit.multiplier;
+			catHTML += "<br />unit type: " + category.unit.type;
+			catHTML += "<br />unit unit: " + category.unit.unit;
+		}
+		
+		
+		catDiv.innerHTML = catHTML;
+		$("#result").append(catDiv);
+		//result.appendChild(catDiv);
+		$("#result").append('<br />');
+	}
+}
+
+function show_data(){
+	if (isDataFormatted.valueOf()) {
+		toggle_structure();
+		return;
+	}
+	//Do we need a dataset selection for multi segment?
+	if (J.length > 1) {
+		show_dataset_selector();
+	}
+	currentDataset = J.id[0];
+	show_dataset();
+
+	toggle_structure();
+}
+
+function show_dataset_selector() {
+	$("#datasetselector").empty();
+	var select = $("<select/>");
+	var dsArray = J.id;
+	for (var i=0;i<J.id.length;i++){
+		select.append($("<option/>").html(J.id[i]));
+	}
+	$("#datasetselector").change(function(){
+		currentDataset = $(this).find(":selected").val(); 
+		show_dataset();
+	});
+	$("#datasetselector").append(select);
+	$("#datasetselector").show();
+}
+
+function show_dataset() {
+	//google.load('visualization', '1', {packages:['table']});       
+	drawChart();
+}
+function drawChart() {
+	$("#tableheader").empty();
+	var dataset = J.Dataset(currentDataset);
+	var tbl = dataset.toTable({type:"object"});
+	var data=new google.visualization.DataTable(tbl,0.6);
+	var chart = new google.visualization.Table(document.getElementById('chart_div'));         
+	chart.draw(data, null); 
+}
+
+
+
+</script>
+</body>
+</html>
